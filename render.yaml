@@ -2,8 +2,8 @@ services:
   - type: web
     name: datacomp
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python backend/app.py
+    buildCommand: pip install -r Video-Compression-main/requirements.txt
+    startCommand: python Video-Compression-main/backend/app.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
