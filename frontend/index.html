@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataComp — Video Compression Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 28 28" fill="none">
+          <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="17" y="1" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+          <rect x="1" y="17" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+          <rect x="17" y="17" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5" opacity="0.15"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-name">DataComp</span>
+          <span class="brand-sub">Video Compression Engine</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-center">
+      <nav class="header-nav">
+        <span class="nav-item active" data-tab="compare" onclick="switchTab(this)">Compare</span>
+        <span class="nav-item" data-tab="diff" onclick="switchTab(this)">Diff Map</span>
+        <span class="nav-item" data-tab="bitrate" onclick="switchTab(this)">Frame Stats</span>
+      </nav>
+    </div>
+    <div class="header-right">
+      <div class="status-pill">
+        <span class="status-dot" id="sdot"></span>
+        <span class="status-text" id="sys-status">IDLE</span>
+      </div>
+      <div class="clock" id="footClock">--:--:--</div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+
+    <!-- LEFT: CONTROLS -->
+    <aside class="sidebar-left">
+
+      <div class="sidebar-section">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept="video/*" style="display:none">
+          <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4-4m0 0l-4 4m4-4v12"/>
+          </svg>
+          <div class="dz-label">Drop video file</div>
+          <div class="dz-hint">MP4, AVI, MOV, MKV, WebM</div>
+          <div class="dz-file-badge" id="dz-info" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-title">
+          <span class="section-num">01</span>
+          <span>Codec Parameters</span>
+        </div>
+
+        <div class="param-list">
+          <div class="param-item">
+            <div class="param-header">
+              <label class="param-name">Quantization (QP)</label>
+              <span class="param-val" id="v-qp">28</span>
+            </div>
+            <input type="range" class="slider" id="p-qp" min="1" max="51" value="28">
+            <div class="param-hint">Lower = better quality, more bits</div>
+          </div>
+
+          <div class="param-item">
+            <div class="param-header">
+              <label class="param-name">GOP Size</label>
+              <span class="param-val" id="v-gop">12</span>
+            </div>
+            <input type="range" class="slider" id="p-gop" min="1" max="60" value="12">
+            <div class="param-hint">Frames between keyframes</div>
+          </div>
+
+          <div class="param-item">
+            <div class="param-header">
+              <label class="param-name">Search Range</label>
+              <span class="param-val" id="v-sr">16</span>
+            </div>
+            <input type="range" class="slider" id="p-sr" min="4" max="64" value="16" step="4">
+            <div class="param-hint">Motion estimation window (px)</div>
+          </div>
+
+          <div class="param-item">
+            <div class="param-header">
+              <label class="param-name">Target Bitrate</label>
+              <span class="param-val" id="v-br">2500 <em>kbps</em></span>
+            </div>
+            <input type="range" class="slider" id="p-br" min="500" max="10000" value="2500" step="100">
+          </div>
+
+          <div class="param-item select-item">
+            <label class="param-name">Block Size</label>
+            <select class="select-ctrl" id="p-mb">
+              <option value="4">4×4  Variable</option>
+              <option value="8">8×8  Standard</option>
+              <option value="16" selected>16×16  Performance</option>
+            </select>
+          </div>
+
+          <div class="param-item select-item">
+            <label class="param-name">Entropy Coding</label>
+            <select class="select-ctrl" id="p-ent">
+              <option value="huffman" selected>Huffman (Fast)</option>
+              <option value="cabac">CABAC (Efficient)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-title">
+          <span class="section-num">02</span>
+          <span>Advanced Features</span>
+        </div>
+        <div class="toggle-list">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Adaptive Quantization</div>
+              <div class="toggle-desc">Per-block QP from variance map</div>
+            </div>
+            <button class="tog on" id="t-aq"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Scene Detection</div>
+              <div class="toggle-desc">Force I-frame on scene cuts</div>
+            </div>
+            <button class="tog on" id="t-sc"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Rate Control</div>
+              <div class="toggle-desc">Adaptive bitrate management</div>
+            </div>
+            <button class="tog on" id="t-rc"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Deblocking Filter</div>
+              <div class="toggle-desc">Suppress block artifacts</div>
+            </div>
+            <button class="tog on" id="t-db"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section sidebar-action">
+        <button class="encode-btn" id="encodeBtn" onclick="startEncode()">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M5 3l11 7-11 7V3z"/>
+          </svg>
+          Run Compression
+        </button>
+        <div class="progress-block" id="progressWrap" style="display:none">
+          <div class="prog-meta">
+            <span class="prog-stage" id="progStage">Uploading</span>
+            <span class="prog-pct" id="progPct">0%</span>
+          </div>
+          <div class="prog-track">
+            <div class="prog-fill" id="progFill"></div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- CENTER: VIEWER -->
+    <main class="viewer">
+
+      <div id="tab-compare" class="tab-pane active">
+        <div class="compare-stage">
+          <div class="stream-half">
+            <div class="stream-label">Original</div>
+            <div class="canvas-wrap">
+              <canvas id="canvasOrig"></canvas>
+              <div class="canvas-empty" id="emptyOrig">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+                <span>No source loaded</span>
+              </div>
+            </div>
+            <div class="stream-meta" id="infoOrig">— MB</div>
+          </div>
+          <div class="compare-divider">
+            <div class="divider-line"></div>
+          </div>
+          <div class="stream-half">
+            <div class="stream-label compressed">Compressed</div>
+            <div class="canvas-wrap">
+              <canvas id="canvasComp"></canvas>
+              <div class="canvas-empty" id="emptyComp">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <span>Awaiting encode</span>
+              </div>
+            </div>
+            <div class="stream-meta" id="infoComp">PSNR: — dB</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-diff" class="tab-pane">
+        <div class="diff-stage">
+          <canvas id="canvasDiff"></canvas>
+          <div class="diff-legend">
+            <span class="leg-item"><i class="leg-dot high"></i>High error</span>
+            <span class="leg-item"><i class="leg-dot zero"></i>No change</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-bitrate" class="tab-pane">
+        <div class="chart-stage">
+          <div class="chart-title">Per-Frame PSNR &amp; Bit Cost</div>
+          <canvas id="canvasFrameStats"></canvas>
+          <div class="chart-empty" id="br-ph">Run compression to see frame-level analysis</div>
+        </div>
+      </div>
+
+      <div class="viewer-bottom">
+        <div class="bottom-panel bitstream-panel">
+          <div class="bp-header">
+            <span class="bp-title">Bitstream Composition</span>
+            <div class="bs-legend">
+              <span><i class="bs-dot i-frame"></i>I-frame</span>
+              <span><i class="bs-dot p-frame"></i>P-frame</span>
+              <span><i class="bs-dot scene"></i>Scene cut</span>
+            </div>
+          </div>
+          <canvas id="canvasBitstream"></canvas>
+          <div class="bp-empty" id="bs-ph">No bitstream data — run encode first</div>
+        </div>
+
+        <div class="bottom-panel log-panel">
+          <div class="bp-header">
+            <span class="bp-title">System Log</span>
+          </div>
+          <div class="log-body" id="logBody">
+            <div class="log-entry info"><span class="log-ts">--:--:--</span><span class="log-msg">DataComp codec engine initialized</span></div>
+            <div class="log-entry"><span class="log-ts">--:--:--</span><span class="log-msg">Huffman entropy coder ready</span></div>
+            <div class="log-entry"><span class="log-ts">--:--:--</span><span class="log-msg">Motion estimator loaded (diamond search)</span></div>
+            <div class="log-entry ok"><span class="log-ts">--:--:--</span><span class="log-msg">Awaiting video input…</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- RIGHT: METRICS -->
+    <aside class="sidebar-right">
+
+      <div class="metrics-head">Output Metrics</div>
+
+      <div class="metric-card primary-metric">
+        <div class="metric-label">Compression Ratio</div>
+        <div class="metric-value accent" id="mc-ratio">—</div>
+        <div class="metric-unit">× size reduction</div>
+        <div class="metric-bar-track"><div class="metric-bar" id="mb-ratio" style="background:var(--accent)"></div></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">PSNR</div>
+        <div class="metric-value green" id="mc-psnr">—</div>
+        <div class="metric-unit">dB peak signal-to-noise</div>
+        <div class="metric-bar-track"><div class="metric-bar" id="mb-psnr" style="background:var(--green)"></div></div>
+        <div class="metric-badge" id="mc-quality">Quality: —</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">SSIM Index</div>
+        <div class="metric-value blue" id="mc-ssim">—</div>
+        <div class="metric-unit">structural similarity [0–1]</div>
+        <div class="metric-bar-track"><div class="metric-bar" id="mb-ssim" style="background:var(--blue)"></div></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">Encoding Speed</div>
+        <div class="metric-value orange" id="mc-fps">—</div>
+        <div class="metric-unit">frames per second</div>
+        <div class="metric-bar-track"><div class="metric-bar" id="mb-fps" style="background:var(--orange)"></div></div>
+      </div>
+
+      <div class="metric-card frame-dist-card">
+        <div class="metric-label">Frame Distribution</div>
+        <div class="frame-dist-row">
+          <div class="fd-item">
+            <div class="fd-val orange" id="mc-if">—</div>
+            <div class="fd-label">I-frames</div>
+          </div>
+          <div class="fd-sep">/</div>
+          <div class="fd-item">
+            <div class="fd-val accent" id="mc-pf">—</div>
+            <div class="fd-label">P-frames</div>
+          </div>
+          <div class="fd-sep">/</div>
+          <div class="fd-item">
+            <div class="fd-val yellow" id="mc-sc">—</div>
+            <div class="fd-label">Scenes</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-row-group">
+        <div class="metric-mini">
+          <div class="metric-label">Total Bits</div>
+          <div class="metric-mini-val" id="mc-bits">—</div>
+        </div>
+        <div class="metric-mini">
+          <div class="metric-label">Avg MV</div>
+          <div class="metric-mini-val" id="mc-mv">—</div>
+        </div>
+        <div class="metric-mini">
+          <div class="metric-label">Encode Time</div>
+          <div class="metric-mini-val" id="mc-time">—</div>
+        </div>
+      </div>
+
+      <div class="metric-card dct-card">
+        <div class="metric-label">DCT Coefficients <span style="opacity:.35">(8×8 sample)</span></div>
+        <div class="mini-dct" id="miniDct"></div>
+      </div>
+
+      <div class="metric-card dl-card" id="dl-card" style="display:none">
+        <div class="metric-label">Output Ready</div>
+        <a class="dl-btn" id="dlBtn" href="#" download>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v8M4 8l4 4 4-4"/><path d="M2 14h12"/></svg>
+          Download Compressed Video
+        </a>
+      </div>
+
+      <div class="metric-card frame-list-card">
+        <div class="metric-label">Frame Timeline</div>
+        <div class="frame-list" id="frameList">
+          <div class="fl-empty">No frames loaded</div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <footer>
+    <div class="footer-info">
+      <span>DataComp</span>
+      <span class="ft-sep">·</span>
+      <span>H.264-inspired codec</span>
+      <span class="ft-sep">·</span>
+      <span>DCT · Huffman · Motion Estimation · Adaptive QP</span>
+    </div>
+    <div class="footer-stack">Python · NumPy · OpenCV · Flask</div>
+  </footer>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>
