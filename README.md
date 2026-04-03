@@ -148,4 +148,4 @@ PSNR / SSIM Metrics + MP4 Output
 
 ---
 
-*Built as an academic project demonstrating video compression fundamentals from scratch.*
+*Built as an academic project demonstrating video compression fundamentals.*
