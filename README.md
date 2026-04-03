@@ -1,155 +1,151 @@
-# VIDCOMP — Custom Video Compression Codec
+# DataComp — Video Compression Engine
 
-> A full-stack H.264-inspired video compression system with a Python backend and a dark, technical web frontend.
+> A full-stack H.264-inspired video compression system.
+
+**Live Demo → [https://vidcomp-2yw4.onrender.com](https://vidcomp-2yw4.onrender.com)**
 
 ---
 
-## 📁 Project Structure
+## What it does
+
+DataComp implements a real video compression pipeline — not a wrapper around ffmpeg. It encodes video frame-by-frame using DCT, motion estimation, Huffman entropy coding, and quantization, then reports quality metrics (PSNR, SSIM, compression ratio) alongside a visual comparison of the original vs compressed output.
+
+---
+
+## Project Structure
 
 ```
-vidcomp/
+DataComp/
 ├── backend/
-│   ├── app.py              # Flask REST API server
-│   └── codec_engine.py     # Core compression algorithms
+│   ├── app.py              # Flask REST API
+│   └── codec_engine.py     # Compression algorithms
 ├── frontend/
-│   ├── index.html          # Main UI
+│   ├── index.html          # UI
 │   └── static/
-│       ├── css/style.css   # Styling
-│       └── js/main.js      # Frontend logic
-├── uploads/                # Temp video uploads (auto-created)
-├── outputs/                # Encoded outputs (auto-created)
-├── requirements.txt        # Python dependencies
-└── README.md
+│       ├── css/style.css
+│       └── js/main.js
+├── uploads/                # Auto-created
+├── outputs/                # Auto-created
+├── requirements.txt
+└── render.yaml             # Render deployment config
 ```
 
 ---
 
-## 🚀 Quick Start
+## Running Locally
 
-### 1. Install Dependencies
+**Requirements:** Python 3.9+
 
 ```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Start the server
+python backend/app.py
 ```
 
-> Requires Python 3.9+ and `ffmpeg` installed on your system.
-
-### 2. Start the Backend
-
-```bash
-cd backend
-python app.py
-```
-
-The server starts at **http://localhost:5000**
-
-### 3. Open the Frontend
-
-Navigate to **http://localhost:5000** in your browser.
-
-The Flask server serves the frontend automatically.
+Open **http://localhost:5000** in your browser.
 
 ---
 
-## ⚙️ How It Works
-
-### Encoding Pipeline
+## Encoding Pipeline
 
 ```
 Video Input
     │
     ▼
-Frame Extraction (OpenCV)
+Frame Extraction  (OpenCV)
     │
     ▼
 GOP Structuring + Scene Change Detection
     │
-    ├─── I-Frame ──► DCT → Quantize → Huffman
+    ├── I-Frame ──► DCT → Quantize → Zigzag → RLE → Huffman
     │
-    └─── P-Frame ──► Motion Estimation → Residual DCT → Huffman
+    └── P-Frame ──► Motion Estimation → Residual DCT → Quantize → Huffman
     │
     ▼
-Bitstream Output + Quality Metrics
+Reconstruct (IDCT + Motion Compensation) → Deblocking Filter
+    │
+    ▼
+PSNR / SSIM Metrics + MP4 Output
 ```
-
-### Algorithms Implemented
-
-| Component | Algorithm |
-|-----------|-----------|
-| Frame Coding | I-Frame (Intra), P-Frame (Inter) |
-| Motion Estimation | Full Search + Hierarchical 3-Level |
-| Spatial Transform | 8×8 DCT (via SciPy) |
-| Quantization | Scaled JPEG Luma/Chroma Matrix |
-| Entropy Coding | Huffman over zigzag-scanned RLE |
-| Scene Detection | Histogram difference threshold |
-| Adaptive QP | Laplacian variance complexity |
-| Rate Control | QP feedback loop |
-| Post-processing | Deblocking at 8×8 boundaries |
 
 ---
 
-## 📡 REST API
+## Algorithms
+
+| Component | Implementation |
+|-----------|----------------|
+| Spatial Transform | 8×8 DCT via SciPy |
+| Quantization | Scaled JPEG luma matrix (QP 1–51) |
+| Entropy Coding | Huffman over zigzag-scanned RLE coefficients |
+| Motion Estimation | Diamond search + Full search |
+| Scene Detection | Normalized frame difference threshold |
+| Adaptive QP | Per-macroblock variance-based QP adjustment |
+| Rate Control | QP feedback loop targeting bitrate |
+| Post-processing | Bilateral deblocking filter |
+
+---
+
+## API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET  | `/api/health` | System health check |
-| POST | `/api/upload` | Upload video + start encode job |
-| GET  | `/api/jobs/<id>` | Poll job status & results |
-| GET  | `/api/jobs` | List all jobs |
-| POST | `/api/jobs/<id>/cancel` | Cancel queued job |
-| GET  | `/api/formats` | Supported formats & limits |
+| GET | `/api/health` | Health check + version |
+| GET | `/api/info` | Codec parameter documentation |
+| POST | `/api/upload` | Upload video and start encode job |
+| GET | `/api/jobs/<id>` | Poll job status and results |
+| GET | `/api/jobs` | List all jobs |
+| GET | `/api/frame/<id>/<type>` | Get original or compressed frame |
+| GET | `/api/download/<id>` | Download compressed video |
 
-### Upload Parameters (form-data)
+### Upload Parameters
 
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `video` | — | — | Video file (required) |
-| `qp` | 28 | 1–51 | Quantization parameter |
-| `gop_size` | 12 | 1–60 | Frames per GOP |
-| `block_size` | 16 | 4/8/16 | Macroblock size |
-| `search_range` | 16 | 4–64 | ME search radius (px) |
-| `entropy_mode` | huffman | huffman/rle/cabac/cavlc | Entropy coder |
-| `adaptive_quantization` | true | bool | Adaptive QP |
-| `scene_change_detection` | true | bool | Auto I-frame on scene cut |
-| `rate_control` | true | bool | Bitrate feedback |
-| `deblocking` | true | bool | Post-processing filter |
-| `target_bitrate_kbps` | 2500 | 500–10000 | Rate control target |
+| Parameter | Default | Range |
+|-----------|---------|-------|
+| `qp` | 28 | 1–51 |
+| `gop_size` | 12 | 1–60 |
+| `block_size` | 16 | 4 / 8 / 16 |
+| `search_range` | 16 | 4–64 |
+| `entropy_mode` | huffman | huffman / cabac |
+| `target_bitrate_kbps` | 2500 | 500–10000 |
+| `adaptive_quantization` | true | bool |
+| `scene_change_detection` | true | bool |
+| `rate_control` | true | bool |
+| `deblocking` | true | bool |
 
 ---
 
-## 📊 Output Metrics
+## Output Metrics
 
-- **Compression Ratio** — original / encoded bits
+- **Compression Ratio** — original bits / encoded bits
 - **PSNR** — Peak Signal-to-Noise Ratio (dB)
-- **SSIM** — Structural Similarity Index
-- **Encoding FPS** — frames per second throughput
-- **Per-frame** — type, QP, bits, PSNR, SSIM, motion vectors
-- **Scene changes** — auto-detected transitions
+- **SSIM** — Structural Similarity Index [0–1]
+- **Encoding FPS** — throughput in frames per second
+- **Per-frame data** — type, bits, PSNR, SSIM, motion vectors
+- **Bitstream composition** — I-frame / P-frame / scene cut breakdown
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | Backend | Python 3.11, Flask, Flask-CORS |
-| Video I/O | OpenCV (`opencv-python-headless`) |
-| DSP / Math | NumPy, SciPy (DCT/IDCT) |
-| Frontend | Vanilla HTML5, CSS3, JavaScript |
-| Rendering | Canvas 2D API |
-| Fonts | Orbitron, Share Tech Mono, Rajdhani |
+| Video I/O | OpenCV (headless) |
+| DSP / Math | NumPy, SciPy |
+| Frontend | HTML5, CSS3, Vanilla JS, Canvas API |
+| Fonts | Syne, DM Mono, Space Grotesk |
+| Deployment | Render (free tier) |
 
 ---
 
-## 📝 Codec Reference
+## References
 
-Inspired by:
-- **H.264 / MPEG-4 AVC** (ISO/IEC 14496-10)
-- **JPEG DCT** quantization matrix structure
-- **Huffman entropy coding** (RFC 1951)
+- H.264 / MPEG-4 AVC — ISO/IEC 14496-10
+- JPEG DCT quantization matrix structure
+- Huffman entropy coding — RFC 1951
 
 ---
 
-## 👤 Author
-
-Built as a full-stack academic project demonstrating video compression fundamentals.
+*Built as an academic project demonstrating video compression fundamentals from scratch.*
